@@ -1,0 +1,66 @@
+version: "24.0.2"
+services:
+  # Eureka
+  eurekaserver:
+    container_name: eurekaRegistry
+    hostname: eurekaRegistry
+    build: ./EUREKASERVER
+    ports:
+      - "8761:8761"
+    image: "eureka:latest"
+    environment:
+      - eureka.client.serviceUrl.defaultZone=http://eurekaserver:8761/eureka/
+
+  # sponsor
+  sponsor:
+    container_name: SponsorService
+    build: ./Sponsor
+    ports:
+      - "8084:8083"
+    image: "sponsor:v1"
+    depends_on:
+      - eurekaserver
+    environment:
+      - eureka.client.serviceUrl.defaultZone=http://eurekaserver:8761/eureka/
+      - spring.h2.console.settings.web-allow-others=true    
+
+    # hackaton
+  hackaton:
+    container_name: HackatonService
+    build: ./Hackaton
+    ports:
+      - "8090:8091"
+    hostname: HackatonService
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://sponsordb:5432/sponsor_db
+      - eureka.client.serviceUrl.defaultZone=http://eurekaserver:8761/eureka/
+    image: "hackaton:v1"
+    depends_on:
+      - eurekaserver
+      - sponsordb
+    
+
+  sponsordb:
+    container_name: sponsordb
+    image: "postgres:latest"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: sys
+      POSTGRES_DB: sponsor_db
+    ports:
+      - 5433:5432      
+  
+  Apigateway:
+    container_name: apigatewayserver
+    build: ./APiGateway
+    ports:
+      - 8086:8086
+    image: "apigateway:v1"
+    depends_on:
+      - eurekaserver      
+      - sponsor
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8761/eureka/
+      - SPRING_CLOUD_GATEWAY_ROUTES_0_ID=sponsor
+      - SPRING_CLOUD_GATEWAY_ROUTES_0_URI=http://sponsor:8083
+      - SPRING_CLOUD_GATEWAY_ROUTES_0_PREDICATES_0=Path=/api/sponsors/**
